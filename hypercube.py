@@ -4,13 +4,14 @@ import sys
 import itertools as it
 from collections import defaultdict 
 from operator import itemgetter
+import random
 
 class Ui_PoolTestingCalculator(object):
 
     def __init__(self, slices=3, constant=0.35):
         self.slices = slices
         self.constant = constant
-        
+
     def grouping(self):
         if self.samplesEdit.text() == "" or self.prevalenceEdit.text() == "":
             self.error_1.setText("Enter both values")
@@ -21,57 +22,51 @@ class Ui_PoolTestingCalculator(object):
         else:
             self.error_1.setText("")
             self.poolSize = int(round(self.constant / float(self.prevalenceEdit.text())))
-            self.numPools = float(self.samplesEdit.text()) / self.poolSize
+            self.numberOfPools = float(self.samplesEdit.text()) / self.poolSize
             self.sizeNumber.setText( str(self.poolSize))
-            self.valueNumPools.setText( str(int(np.ceil(self.numPools))))
+            self.valueNumberOfPools.setText( str(int(np.ceil(self.numberOfPools))))
             self.poolSizeEdit.setText(str(self.poolSize))
    
-    def secondGrouping(self):
-        if self.poolSizeEdit.text() == "":
-            self.error_2.setText("Enter a number")
-        elif int(self.poolSizeEdit.text())<=3:
-            self.error_2.setText("Enter a valid number")
-        else:
-            self.error_2.setText("")
-            self.dimensionTabs.setCurrentIndex(0)
-            self.setNames = []
-            self.tabNames = {}
-            self.positiveSlicesList = []
-            self.positiveSets = []
-            self.resetTabs()
-            self.editablePoolSize = int(self.poolSizeEdit.text())
-            self.D = int(np.ceil(np.log(self.editablePoolSize) / np.log(self.slices)))
-            self.valueDimension.setText( str(self.D))
-            self.valueSlices.setText(str(self.D*3))
-            self.numMaxSlice.setText(str(3**(self.D-1)))
-            self.slicedCube = self.create_slices(self.D)
-            self.createTabs(self.D, self.slicedCube)
-            self.initText = ', '.join(str(s) for s in self.tabContent["D1"]["yellow"] if s <= self.editablePoolSize)
-            self.sliceLength = len(self.tabContent["D1"]["yellow"])
-            self.sliceId.setText("Direction "+"1, "+"Yellow Slice with "+str(self.sliceLength)+" Samples.")
-            self.sliceShow.setText(self.initText)
-   
-    def labelledCube(self, dimension):
-        dim = dimension
+    def labelledCube(self, dim=None, sample=None):
         """ If a group tests positive, this function creates a label for samples in the group"""
-        labels = list(it.product(*(range(self.slices),) * dim))
-        labelled_sample = {label: sample+1 for sample, label in enumerate(labels)}
+        if dim is None:
+            dim = self.D
+        if sample is None:
+            sample = range(1, int(self.poolSize)+1)
+            
+        all_labels = list(it.product(*(range(self.slices),) * dim))
+        self.sample_labels = set(random.sample(all_labels, k= len(sample)))
+        labelled_sample = {label : sample for label, sample in zip(self.sample_labels, sample)}
         return labelled_sample
 
-    def create_slices(self, D):  
+    def create_slices(self, dim=None, sample=None):
+        
         """ Here different slices are created using the labels for further testing"""
-        init = [range(3)] * (D-1)
+        
+        if dim is None:
+            dim = self.D
+        if sample is None:
+            sample = range(1, int(self.poolSize)+1)
+        labelsCube = self.labelledCube(dim, sample)
+        init = [range(3)] * (dim-1)
         slice_colors = ['yellow', 'red', 'green']
-        labelsCube = self.labelledCube(D)
-        initialize = defaultdict(lambda: defaultdict(lambda:0))
-        for d in range(D):
+        initialize = defaultdict(lambda: defaultdict(lambda:'Error'))
+        for d in range(dim):
             for l in range(self.slices):
                 copy = list(init)
                 copy.insert(d, (l,))
                 slices = set(it.product(*copy))
-                initialize['D'+str(d+1)][slice_colors[l]] = set(itemgetter(*slices)(labelsCube))
+                slices_sample_label = self.sample_labels.intersection(slices)
+                if len(slices_sample_label)>0:
+                    elts = itemgetter(*slices_sample_label)(labelsCube)
+                else:
+                    elts=""
+                if type(elts)==int:
+                    initialize['D'+str(d+1)][slice_colors[l]] = set([elts])
+                else:
+                    initialize['D'+str(d+1)][slice_colors[l]] = set([ i for i in elts])
         return initialize
-   
+
     def setupUi(self, PoolTestingCalculator):
         PoolTestingCalculator.setObjectName("PoolTestingCalculator")
         PoolTestingCalculator.resize(1112, 643)
@@ -152,20 +147,20 @@ class Ui_PoolTestingCalculator(object):
         self.sizeNumber.setStyleSheet("border: none;")
         self.sizeNumber.setText("0")
         self.sizeNumber.setObjectName("sizeNumber")
-        self.valueNumPools = QtWidgets.QLabel(self.testSetup)
+        self.valueNumberOfPools = QtWidgets.QLabel(self.testSetup)
         self.sizeNumber.setAlignment(QtCore.Qt.AlignRight)
-        self.valueNumPools.setGeometry(QtCore.QRect(160, 93, 71, 16))
+        self.valueNumberOfPools.setGeometry(QtCore.QRect(160, 93, 71, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         font.setBold(True)
         font.setWeight(75)
-        self.valueNumPools.setFont(font)
-        self.valueNumPools.setMouseTracking(True)
-        self.valueNumPools.setAutoFillBackground(False)
-        self.valueNumPools.setStyleSheet("border: none;")
-        self.valueNumPools.setText("0")
-        self.valueNumPools.setAlignment(QtCore.Qt.AlignRight)
-        self.valueNumPools.setObjectName("valueNumPools")
+        self.valueNumberOfPools.setFont(font)
+        self.valueNumberOfPools.setMouseTracking(True)
+        self.valueNumberOfPools.setAutoFillBackground(False)
+        self.valueNumberOfPools.setStyleSheet("border: none;")
+        self.valueNumberOfPools.setText("0")
+        self.valueNumberOfPools.setAlignment(QtCore.Qt.AlignRight)
+        self.valueNumberOfPools.setObjectName("valueNumberOfPools")
         self.line_5 = QtWidgets.QFrame(self.testSetup)
         self.line_5.setGeometry(QtCore.QRect(0, 120, 817, 20))
         self.line_5.setStyleSheet("border-bottom: 0;border-radius: 0;")
@@ -351,7 +346,21 @@ class Ui_PoolTestingCalculator(object):
         self.okButton.setFlat(True)
         self.okButton.setText("OK")
         self.okButton.setObjectName("okButton")
-        self.okButton.clicked.connect(self.positiveResults)
+        self.okButton.clicked.connect(self.find_positive)
+        self.okButton1 = QtWidgets.QPushButton(self.resOutput)
+        self.okButton1.setGeometry(QtCore.QRect(580, 150, 41, 25))
+        self.okButton1.setMouseTracking(True)
+        self.okButton1.setFocusPolicy(QtCore.Qt.TabFocus)
+        self.okButton1.setAutoFillBackground(False)
+        self.okButton1.setStyleSheet("background:#02655e;color: #fff;font-weight: 600")
+        self.okButton1.setInputMethodHints(QtCore.Qt.ImhDigitsOnly)
+        self.okButton1.setAutoDefault(True)
+        self.okButton1.setFlat(True)
+        self.okButton1.setText("OK")
+        self.okButton1.setObjectName("okButton1")
+        self.okButton1.clicked.connect(self.find_positive)
+        self.okButton1.clicked.connect(self.positiveResults)
+        self.okButton1.setHidden(True)
         self.resetButton = QtWidgets.QPushButton(self.resOutput)
         self.resetButton.setGeometry(QtCore.QRect(510, 150, 61, 25))
         self.resetButton.setMouseTracking(True)
@@ -364,6 +373,19 @@ class Ui_PoolTestingCalculator(object):
         self.resetButton.setText("Reset")
         self.resetButton.setObjectName("resetButton")
         self.resetButton.clicked.connect(self.resetPositiveSlices)
+        self.resetButton1 = QtWidgets.QPushButton(self.resOutput)
+        self.resetButton1.setGeometry(QtCore.QRect(510, 150, 61, 25))
+        self.resetButton1.setMouseTracking(True)
+        self.resetButton1.setFocusPolicy(QtCore.Qt.TabFocus)
+        self.resetButton1.setAutoFillBackground(False)
+        self.resetButton1.setStyleSheet("background: rgb(156, 3, 3);color: #fff;font-weight: 600;hover{ background:#800000;};")
+        self.resetButton1.setInputMethodHints(QtCore.Qt.ImhDigitsOnly)
+        self.resetButton1.setAutoDefault(True)
+        self.resetButton1.setFlat(True)
+        self.resetButton1.setText("Reset")
+        self.resetButton1.setObjectName("resetButton1")
+        self.resetButton1.clicked.connect(self.resetPositiveSlices1)
+        self.resetButton1.setHidden(True)
         self.positiveSamples = QtWidgets.QLabel(self.resOutput)
         self.positiveSamples.setGeometry(QtCore.QRect(640, 60, 161, 111))
         self.positiveSamples.setStyleSheet("text-align: justify; border: none; font-size: 14pt; font-weight: 600; color:rgb(118, 37, 26)")
@@ -383,7 +405,9 @@ class Ui_PoolTestingCalculator(object):
         self.line_9.raise_()
         self.positiveSlices.raise_()
         self.okButton.raise_()
+        self.okButton1.raise_()
         self.resetButton.raise_()
+        self.resetButton1.raise_()
         self.positiveSamples.raise_()
         self.input = QtWidgets.QWidget(self.centralwidget)
         self.input.setGeometry(QtCore.QRect(10, 10, 251, 582))
@@ -741,14 +765,36 @@ class Ui_PoolTestingCalculator(object):
         self.sliceId.setStyleSheet("border: none")
         self.sliceId.setObjectName("sliceId") 
         self.sliceId.raise_()
-        
+        self.sliceTitle = QtWidgets.QLabel(self.secondRound)
+        self.sliceTitle.setGeometry(QtCore.QRect(20, 83, 41, 19))
+        font = QtGui.QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        font.setWeight(75)
+        self.sliceSelect = QtWidgets.QComboBox(self.secondRound)
+        self.sliceSelect.setGeometry(QtCore.QRect(100, 78, 111, 27))
+        self.sliceSelect.setObjectName("sliceSelect")
+        self.sliceSelect.setHidden(True)
+        self.sliceSelect.setStyleSheet("font-size: 14pt; color:rgb(77, 69, 23)")
+        self.sliceSelect.activated.connect(self.currentSlice)
+        self.sliceTitle.setFont(font)
+        self.sliceTitle.setMouseTracking(True)
+        self.sliceTitle.setAutoFillBackground(True)
+        self.sliceTitle.setStyleSheet("border: none;")
+        self.sliceTitle.setObjectName("sliceTitle")
+        self.sliceTitle.setText("Slice:")
+        self.sliceTitle.setHidden(True)
+
         self.positiveSamplesList = []
         self.tabContent = []
         self.positiveSlicesList = []
         self.positiveSets = []
-        
+        self.results = {}
+        self.round = 1
+        self.okClicked = 0
 
     def createTabs(self, dimension, labelledCube):
+        self.resetTabs()
         for i in range(dimension):
             self.setNames.append("D" + str(i+1))
             self.tabNames["D"+str(i+1)] = "tab_" + str(i+1)
@@ -765,7 +811,7 @@ class Ui_PoolTestingCalculator(object):
         if self.dimensionTabs.count() == 0:
             dispText = ""
         else:
-           dispText  = ', '.join(str(s) for s in self.tabContent[currentTabText]["yellow"] if s <= self.editablePoolSize)
+            dispText  = ', '.join(str(s) for s in self.tabContent[currentTabText]["yellow"] if s <= self.editablePoolSize)
         self.comboBox.setCurrentIndex(0)
         self.sliceShow.setText(dispText)
         self.sliceLength = len(dispText.split(", "))
@@ -776,7 +822,7 @@ class Ui_PoolTestingCalculator(object):
         currentTabText = self.dimensionTabs.tabText(index)
         currentComboText = ["yellow", "red", "green"][i]
         if self.tabContent == []:
-           pass
+            pass
         else:
             dispText  = ', '.join(str(s) for s in self.tabContent[currentTabText][currentComboText] if s <= self.editablePoolSize)
             self.sliceShow.setText(dispText)
@@ -786,23 +832,47 @@ class Ui_PoolTestingCalculator(object):
     def addSlice(self):
         self.color = self.colorSelect.currentIndex()
         self.colorName = ["yellow", "red", "green"][self.color]
-        self.dim = self.dimensionTabs.tabText(self.dimSelect.currentIndex())
-        self.positiveSlicesList.append( self.dim +"-"+["Y", "R", "G"][self.color])
+        self.dim = str(self.dimensionTabs.tabText(self.dimSelect.currentIndex()))
+        self.positiveSlicesList.append( self.dim +"-"+self.colorName)
         if self.tabContent == []:
-           pass
+            pass
         else:
             self.positiveSets.append(self.tabContent[self.dim][self.colorName])
             self.res = set(self.positiveSlicesList)
             dispText  = '; '.join(str(s) for s in self.res)
             self.positiveSlices.setText(dispText)
             self.positiveSamplesList = set.intersection(*self.positiveSets)
+        try:
+            self.results[self.dim].append(self.colorName)
+        except KeyError:
+            self.results[self.dim] = [self.colorName]
 
     def resetPositiveSlices(self):
+        self.secondInputTitle.setText("Second round")
+        self.resetButton_3.setHidden(False)
+        self.calcSecondButton.setHidden(False)
+        self.poolSizeEdit.setHidden(False)
+        self.inPoolSize.setHidden(False)
+        self.sliceSelect.setHidden(True)
+        self.sliceTitle.setHidden(True)
+        self.results = {}
         self.positiveSlicesList = []
         self.positiveSets = []
         dispText  = ""
         self.positiveSlices.setText(dispText)
         self.positiveSamples.setText("")
+        self.round = 1
+
+    def resetPositiveSlices1(self):
+        self.results = {}
+        self.positiveSlicesList = []
+        self.positiveSets = []
+        dispText  = ""
+        self.positiveSlices.setText(dispText)
+        self.positiveSamples.setText("")
+        if self.okClicked == 1:
+            self.resetButton.setHidden(False)
+            self.resetButton1.setHidden(True)
 
     def resetTabs(self):
         self.dimSelect.clear()
@@ -813,7 +883,7 @@ class Ui_PoolTestingCalculator(object):
         self.samplesEdit.setText("")
         self.prevalenceEdit.setText("")
         self.sizeNumber.setText("0")
-        self.valueNumPools.setText("0")
+        self.valueNumberOfPools.setText("0")
         self.resetSecondRound()
 	
     def resetSecondRound(self):
@@ -823,10 +893,113 @@ class Ui_PoolTestingCalculator(object):
         self.numMaxSlice.setText("0")
         self.resetTabs()
         self.resetPositiveSlices()
-	
+    
     def positiveResults(self):
-    	self.positiveSamples.setText('; '.join(str(s) for s in self.positiveSamplesList))
+        self.round = 2
+        self.positiveSamples.setText('; '.join(str(s) for s in self.positiveSamplesList))
+        self.positiveSamplesList=[]
+        self.okClicked = 1
 
+    def find_positive(self, slices=None, dim=None, sample=None):
+        """ This function finds the positive samples from the STAGE TWO testing
+        
+        input: dictionary containing the result of the STAGE TWO test. keys of the dictionary are the dimension 
+        while values of each key is a list of slice colours that have tested positive
+        Output: Positive samples"""
+        print self.round
+        if self.round == 2:
+            pass
+        else:
+            if dim is None:
+                dim = self.D
+            if sample is None:
+                sample = range(1, int(self.poolSize)+1)
+            self.SLICES = self.slicedCube
+            dim_positive_slices = itemgetter(*self.results.keys())(self.results)
+            dim_positive_slices_count = list(map(len,dim_positive_slices))
+            one_pos_slice_count = dim_positive_slices_count.count(1)
+            two_pos_slice_count = dim_positive_slices_count.count(2)
+            three_pos_slice_count = dim_positive_slices_count.count(3)
+            if one_pos_slice_count == dim:
+                positive_slice_samples = [self.SLICES[keys][value] for keys in self.results.keys() for value in self.results[keys]]
+                self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
+                return set.intersection(*positive_slice_samples)
+                
+            elif (one_pos_slice_count == dim-1) and (two_pos_slice_count == 1 or three_pos_slice_count ==1):
+                positive_slice_samples = [itemgetter(*self.results[key])(self.SLICES[key]) 
+                                        if len(self.results[key])==1 else set.union(*itemgetter(*self.results[key])(self.SLICES[key])) 
+                                        for key in self.results.keys()]
+                self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
+
+            else:
+                self.positiveSamples.setText('Indeterministic: \n Proceed to sub- \n directional testing')
+                self.labelsCube = self.labelledCube()
+                self.subTest()
+                self.okButton.setHidden(True)
+                self.round = 2
+                self.resetButton.setHidden(True)
+                self.resetButton1.setHidden(False)
+
+    def secondGrouping(self):
+        if self.poolSizeEdit.text() == "":
+            self.error_2.setText("Enter a number")
+        elif int(self.poolSizeEdit.text())<=3:
+            self.error_2.setText("Enter a valid number")
+        else:
+            self.error_2.setText("")
+            self.dimensionTabs.setCurrentIndex(0)
+            self.setNames = []
+            self.tabNames = {}
+            self.positiveSlicesList = []
+            self.positiveSets = []
+            self.resetTabs()
+            self.editablePoolSize = int(self.poolSizeEdit.text())
+            self.D = int(np.ceil(np.log(self.editablePoolSize) / np.log(self.slices)))
+            self.valueDimension.setText( str(self.D))
+            self.valueSlices.setText(str(self.D*3))
+            self.numMaxSlice.setText(str(3**(self.D-1)))
+            self.slicedCube = self.create_slices(dim = self.D)
+            self.createTabs(self.D, self.slicedCube)
+            self.initText = ', '.join(str(s) for s in self.tabContent["D1"]["yellow"] if s <= self.editablePoolSize)
+            self.sliceLength = len(self.tabContent["D1"]["yellow"])
+            self.sliceId.setText("Direction "+"1, "+"Yellow Slice with "+str(self.sliceLength)+" Samples.")
+            self.sliceShow.setText(self.initText)
+ 
+    def subTest(self, comboText = None):
+        self.myDict = defaultdict(lambda: defaultdict(lambda:'Error'))
+        sub_dim = self.D - 1
+        for i in list(self.results.keys()):
+            for j in self.results[i]:
+                slices = self.SLICES[i][j]
+                self.myDict[i][j] = self.create_slices(dim = sub_dim, sample = slices)
+        self.secondInputTitle.setText("Subtests")
+        self.resetButton_3.setHidden(True)
+        self.calcSecondButton.setHidden(True)
+        self.poolSizeEdit.setHidden(True)
+        self.inPoolSize.setHidden(True)
+        self.sliceSelect.setHidden(False)
+        self.sliceTitle.setHidden(False)
+        self.sliceSelect.addItems(self.res)
+        self.setNames = []
+        self.tabNames = {}
+        self.positiveSlicesList = []
+        self.positiveSets = []
+        self.resetTabs()
+        if comboText == None:
+            x, z, y = list(self.res)[0].partition('-')
+        else:
+            x, z, y = list(comboText.partition('-'))
+        self.partRes = self.myDict[x][y]
+        self.numTabs = len(self.partRes.keys())
+        self.partRes = self.myDict[x][y]
+        self.createTabs(self.numTabs, self.partRes)
+        self.okButton1.setHidden(False)
+
+    def currentSlice(self, i):
+        currentComboText = list(self.res)[i]
+        self.subTest(comboText = currentComboText)
+        
+   
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
