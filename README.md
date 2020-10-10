@@ -21,4 +21,5 @@ Again after testing positive slices are entered in the software to find out whic
 
 NB: For now only one subtest is assumed.
     
-    We're working on saving a session, for future use.
+The sofware can save and open .hcb files (hypercube files). It has a slight bug on the finding positives in sub-test, being fixed ASAP.
+
