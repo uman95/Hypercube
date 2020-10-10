@@ -5,28 +5,20 @@ import itertools as it
 from collections import defaultdict 
 from operator import itemgetter
 import random
+import tkinter as tk
+from tkinter import filedialog
+import pickle
+import dill
 
 class Ui_PoolTestingCalculator(object):
 
     def __init__(self, slices=3, constant=0.35):
         self.slices = slices
         self.constant = constant
-
-    def grouping(self):
-        if self.samplesEdit.text() == "" or self.prevalenceEdit.text() == "":
-            self.error_1.setText("Enter both values")
-        elif int(self.samplesEdit.text())<=0:
-            self.error_1.setText("Enter a valid number")
-        elif float(self.prevalenceEdit.text())>0.35:
-            self.error_1.setText("Enter a valid prevalence")
-        else:
-            self.error_1.setText("")
-            self.poolSize = int(round(self.constant / float(self.prevalenceEdit.text())))
-            self.numberOfPools = float(self.samplesEdit.text()) / self.poolSize
-            self.sizeNumber.setText( str(self.poolSize))
-            self.valueNumberOfPools.setText( str(int(np.ceil(self.numberOfPools))))
-            self.poolSizeEdit.setText(str(self.poolSize))
-   
+        self.text = {}
+        self.D = ""
+        self.poolSize = ""
+            
     def labelledCube(self, dim=None, sample=None):
         """ If a group tests positive, this function creates a label for samples in the group"""
         if dim is None:
@@ -37,6 +29,7 @@ class Ui_PoolTestingCalculator(object):
         all_labels = list(it.product(*(range(self.slices),) * dim))
         self.sample_labels = set(random.sample(all_labels, k= len(sample)))
         labelled_sample = {label : sample for label, sample in zip(self.sample_labels, sample)}
+        self.text["labelledSamples"] = labelled_sample
         return labelled_sample
 
     def create_slices(self, dim=None, sample=None):
@@ -65,6 +58,7 @@ class Ui_PoolTestingCalculator(object):
                     initialize['D'+str(d+1)][slice_colors[l]] = set([elts])
                 else:
                     initialize['D'+str(d+1)][slice_colors[l]] = set([ i for i in elts])
+        self.text["slices"] = str(initialize)
         return initialize
 
     def setupUi(self, PoolTestingCalculator):
@@ -611,6 +605,7 @@ class Ui_PoolTestingCalculator(object):
         self.samplesEdit.setFont(font)
         self.samplesEdit.setStyleSheet("border: 1px solid rgb(72, 72, 72);border-radius: 0;text-align: right;")
         self.samplesEdit.setObjectName("samplesEdit")
+        self.samplesEdit.setStatusTip('Enter the number of samples')
         self.samples = QtWidgets.QLabel(self.firstRound)
         self.samples.setGeometry(QtCore.QRect(20, 60, 71, 19))
         font = QtGui.QFont()
@@ -637,6 +632,7 @@ class Ui_PoolTestingCalculator(object):
         self.prevalence.setObjectName("prevalence")
         self.prevalenceEdit = QtWidgets.QLineEdit(self.firstRound)
         self.prevalenceEdit.setGeometry(QtCore.QRect(120, 100, 91, 21))
+        self.prevalenceEdit.setStatusTip('Enter the value of the prevalence as a rational number and press enter or calculate')
         font = QtGui.QFont()
         font.setPointSize(12)
         font.setBold(True)
@@ -784,7 +780,37 @@ class Ui_PoolTestingCalculator(object):
         self.sliceTitle.setObjectName("sliceTitle")
         self.sliceTitle.setText("Slice:")
         self.sliceTitle.setHidden(True)
-
+        self.menubar = QtWidgets.QMenuBar(PoolTestingCalculator)
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1112, 25))
+        self.menubar.setObjectName("menubar")
+        self.menuFile = QtWidgets.QMenu(self.menubar)
+        self.menuFile.setObjectName("menuFile")
+        PoolTestingCalculator.setMenuBar(self.menubar)
+        self.statusbar = QtWidgets.QStatusBar(PoolTestingCalculator)
+        self.statusbar.setObjectName("statusbar")
+        PoolTestingCalculator.setStatusBar(self.statusbar)
+        self.actionOpen = QtWidgets.QAction(PoolTestingCalculator)      
+        self.actionOpen.setObjectName("actionOpen")
+        self.actionOpen.setText("Open")
+        self.actionOpen.setShortcut("Ctrl+O")
+        self.actionOpen.setStatusTip('Open File')
+        self.actionOpen.triggered.connect(self.fileOpen)             
+        
+        self.actionSave = QtWidgets.QAction(PoolTestingCalculator)
+        self.actionSave.setObjectName("actionSave")
+        self.actionSave.setText("Save")
+        self.actionSave.setShortcut("Ctrl+S")
+        self.actionSave.setStatusTip('Save File')
+        self.actionSave.triggered.connect(self.fileSave) 
+        
+        self.menuFile.addSeparator()
+        self.menuFile.addAction(self.actionOpen)
+        self.menuFile.addSeparator()
+        self.menuFile.addAction(self.actionSave)
+        self.menuFile.addSeparator()
+        self.menubar.addAction(self.menuFile.menuAction())
+        self.menuFile.setTitle("File")
+       
         self.positiveSamplesList = []
         self.tabContent = []
         self.positiveSlicesList = []
@@ -792,6 +818,36 @@ class Ui_PoolTestingCalculator(object):
         self.results = {}
         self.round = 1
         self.okClicked = 0
+        
+    def fileOpen(self):
+        root = tk.Tk()
+        root.withdraw()
+        name = filedialog.askopenfilename(title = "Select file",filetypes = (("Hypercube Files","*.hcb"),))
+        f = open(name, 'r')
+        with f: 
+           try: 
+               text = f.read()
+               readDict = dill.loads(text)
+           except: 
+               print("Failed to read file \n'%s'"%name)
+               return
+        dim = readDict['dimension']
+        prev = readDict['prevalence']
+        samp = readDict['samples']
+        slic = readDict['secondRound']
+        posl = readDict['positiveList']
+        self.prevalenceEdit.setText(str(prev))
+        self.samplesEdit.setText(str(samp))       
+        self.grouping(samples = samp, prevalence = prev)
+        self.secondGrouping(dimension = dim, fixedSlices = slic)
+        self.addSlice(positiveList = posl, indic = 0)
+            
+    def fileSave(self):
+        root = tk.Tk()
+        root.withdraw()
+        f=filedialog.asksaveasfile(mode='w',defaultextension=".hcb") 
+        dill.dump(self.text, f)
+        f.close()                  
 
     def createTabs(self, dimension, labelledCube):
         self.resetTabs()
@@ -829,16 +885,115 @@ class Ui_PoolTestingCalculator(object):
             self.sliceLength = len(dispText.split(", "))
             self.sliceId.setText("Direction "+ str(index+1) +", "+currentComboText+" Slice with "+str(self.sliceLength)+" Samples.")
 
-    def addSlice(self):
+    def grouping(self, samples = None, prevalence = None):
+        if samples is None or prevalence is None:
+            if self.samplesEdit.text() == "" or self.prevalenceEdit.text() == "":
+                self.error_1.setText("Enter both values")
+            elif int(self.samplesEdit.text())<=0:
+                self.error_1.setText("Enter a valid number")
+            elif float(self.prevalenceEdit.text())>0.35:
+                self.error_1.setText("Enter a valid prevalence")
+            else:
+                self.error_1.setText("")
+                self.prevalence = float(self.prevalenceEdit.text())
+                self.samples = float(self.samplesEdit.text())
+        else:
+            self.prevalence = prevalence
+            self.samples = samples      
+        self.poolSize = int(round(self.constant / self.prevalence))
+        self.numberOfPools = float(self.samples / self.poolSize)      
+        self.sizeNumber.setText( str(self.poolSize))
+        self.valueNumberOfPools.setText( str(int(np.ceil(self.numberOfPools))))
+        self.poolSizeEdit.setText(str(self.poolSize))
+        self.editablePoolSize = self.poolSize
+        self.text["prevalence"] = float(self.prevalenceEdit.text())
+        self.text["samples"] = float(self.samplesEdit.text())
+        
+    def secondGrouping(self, dimension = None, fixedSlices = None):
+        self.dimensionTabs.setCurrentIndex(0)
+        self.setNames = []
+        self.tabNames = {}
+        self.positiveSlicesList = []
+        self.positiveSets = []
+        self.resetTabs()
+        if dimension is None or fixedSlices is None:
+            if self.poolSizeEdit.text() == "":
+                self.error_2.setText("Enter a number")
+            elif int(self.poolSizeEdit.text())<=3:
+                self.error_2.setText("Enter a valid number")
+            else:
+                self.error_2.setText("")
+                self.editablePoolSize = int(self.poolSizeEdit.text())
+                self.D = int(np.ceil(np.log(self.editablePoolSize) / np.log(self.slices)))
+                self.slicedCube = self.create_slices(dim = self.D)
+        else:
+            self.D = dimension
+            self.slicedCube = fixedSlices
+        self.text["dimension"] = self.D
+        self.valueDimension.setText( str(self.D))
+        self.valueSlices.setText(str(self.D*3))
+        self.numMaxSlice.setText(str(3**(self.D-1)))
+        self.createTabs(self.D, self.slicedCube)
+        self.initText = ', '.join(str(s) for s in self.tabContent["D1"]["yellow"] if s <= self.editablePoolSize)
+        self.sliceLength = len(self.tabContent["D1"]["yellow"])
+        self.sliceId.setText("Direction "+"1, "+"Yellow Slice with "+str(self.sliceLength)+" Samples.")
+        self.sliceShow.setText(self.initText)
+        self.text["secondRound"] = self.slicedCube
+        
+    def subTest(self, comboText = None, inDict = None):
+        if self.round == 2 or self.round == 1 :
+            self.myDict = defaultdict(lambda: defaultdict(lambda:'Error'))
+            sub_dim = self.D - 1
+            for i in list(self.results.keys()):
+                for j in self.results[i]:
+                    slices = self.SLICES[i][j]
+                    self.myDict[i][j] = self.create_slices(dim = sub_dim, sample = slices)
+                    self.round = 3
+        elif inDict is not None:
+            self.myDict = inDict
+        else:
+            pass
+        self.secondInputTitle.setText("Subtests")
+        self.resetButton_3.setHidden(True)
+        self.calcSecondButton.setHidden(True)
+        self.poolSizeEdit.setHidden(True)
+        self.inPoolSize.setHidden(True)
+        self.sliceSelect.setHidden(False)
+        self.sliceTitle.setHidden(False)
+        self.sliceSelect.addItems(self.res)
+        self.setNames = []
+        self.tabNames = {}
+        self.positiveSlicesList = []
+        self.positiveSets = []
+        self.resetTabs()
+        if comboText == None:
+            x, z, y = list(self.res)[0].partition('-')
+        else:
+            x, z, y = list(comboText.partition('-'))
+        self.partRes = self.myDict[x][y]
+        self.numTabs = len(self.partRes.keys())
+        self.partRes = self.myDict[x][y]
+        self.createTabs(self.numTabs, self.partRes)
+        self.okButton1.setHidden(False)
+    
+    def addSlice(self, positiveList = None, indic = 1 ):
+        self.sliceSelect.clear()
         self.color = self.colorSelect.currentIndex()
         self.colorName = ["yellow", "red", "green"][self.color]
         self.dim = str(self.dimensionTabs.tabText(self.dimSelect.currentIndex()))
-        self.positiveSlicesList.append( self.dim +"-"+self.colorName)
+        if indic == 1:
+            self.positiveSlicesList.append( self.dim +"-"+self.colorName)
+        else:   
+            self.positiveSlicesList = positiveList
         if self.tabContent == []:
             pass
         else:
             self.positiveSets.append(self.tabContent[self.dim][self.colorName])
-            self.res = set(self.positiveSlicesList)
+            if self.round == 1:
+                self.res = set(self.positiveSlicesList)
+            else:
+                self.res2 = set(self.positiveSlicesList)
+            self.text["positiveList"] = self.positiveSlicesList
             dispText  = '; '.join(str(s) for s in self.res)
             self.positiveSlices.setText(dispText)
             self.positiveSamplesList = set.intersection(*self.positiveSets)
@@ -846,7 +1001,7 @@ class Ui_PoolTestingCalculator(object):
             self.results[self.dim].append(self.colorName)
         except KeyError:
             self.results[self.dim] = [self.colorName]
-
+                  
     def resetPositiveSlices(self):
         self.secondInputTitle.setText("Second round")
         self.resetButton_3.setHidden(False)
@@ -878,6 +1033,7 @@ class Ui_PoolTestingCalculator(object):
         self.dimSelect.clear()
         self.dimensionTabs.clear()
         self.sliceId.setText("")
+        self.round = 1
 
     def resetFirstRound(self):
         self.samplesEdit.setText("")
@@ -893,10 +1049,15 @@ class Ui_PoolTestingCalculator(object):
         self.numMaxSlice.setText("0")
         self.resetTabs()
         self.resetPositiveSlices()
+        self.round = 1
     
     def positiveResults(self):
-        self.round = 2
-        self.positiveSamples.setText('; '.join(str(s) for s in self.positiveSamplesList))
+        if self.round == 1:
+            self.round = 2
+        else:
+            self.round = 3
+        self.positiveSamples.setText('; '.join(str(s) for s in 
+        self.positiveSamplesList))
         self.positiveSamplesList=[]
         self.okClicked = 1
 
@@ -906,72 +1067,53 @@ class Ui_PoolTestingCalculator(object):
         input: dictionary containing the result of the STAGE TWO test. keys of the dictionary are the dimension 
         while values of each key is a list of slice colours that have tested positive
         Output: Positive samples"""
-        print self.round
         if self.round == 2:
             pass
         else:
-            if dim is None:
-                dim = self.D
-            if sample is None:
-                sample = range(1, int(self.poolSize)+1)
-            self.SLICES = self.slicedCube
-            dim_positive_slices = itemgetter(*self.results.keys())(self.results)
-            dim_positive_slices_count = list(map(len,dim_positive_slices))
-            one_pos_slice_count = dim_positive_slices_count.count(1)
-            two_pos_slice_count = dim_positive_slices_count.count(2)
-            three_pos_slice_count = dim_positive_slices_count.count(3)
-            if one_pos_slice_count == dim:
-                positive_slice_samples = [self.SLICES[keys][value] for keys in self.results.keys() for value in self.results[keys]]
-                self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
-                return set.intersection(*positive_slice_samples)
-                
-            elif (one_pos_slice_count == dim-1) and (two_pos_slice_count == 1 or three_pos_slice_count ==1):
-                positive_slice_samples = [itemgetter(*self.results[key])(self.SLICES[key]) 
-                                        if len(self.results[key])==1 else set.union(*itemgetter(*self.results[key])(self.SLICES[key])) 
-                                        for key in self.results.keys()]
-                self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
+            try:
+                if dim is None:
+                    dim = self.D
+                if sample is None and self.poolSize :
+                    sample = range(1, int(self.poolSize)+1)
+                    self.SLICES = self.slicedCube
+                dim_positive_slices = itemgetter(*self.results.keys())(self.results)
+                dim_positive_slices_count = list(map(len,dim_positive_slices))
+                one_pos_slice_count = dim_positive_slices_count.count(1)
+                two_pos_slice_count = dim_positive_slices_count.count(2)
+                three_pos_slice_count = dim_positive_slices_count.count(3)
+                if one_pos_slice_count == dim:
+                    positive_slice_samples = [self.SLICES[keys][value] for keys in self.results.keys() for value in self.results[keys]]
+                    self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
+                    return set.intersection(*positive_slice_samples)
+                    
+                elif (one_pos_slice_count == dim-1) and (two_pos_slice_count == 1 or three_pos_slice_count ==1):
+                    positive_slice_samples = [itemgetter(*self.results[key])(self.SLICES[key]) 
+                                            if len(self.results[key])==1 else set.union(*itemgetter(*self.results[key])(self.SLICES[key])) 
+                                            for key in self.results.keys()]
+                    self.positiveSamples.setText('; '.join(str(s) for s in set.intersection(*positive_slice_samples)))
 
-            else:
-                self.positiveSamples.setText('Indeterministic: \n Proceed to sub- \n directional testing')
-                self.labelsCube = self.labelledCube()
-                self.subTest()
-                self.okButton.setHidden(True)
-                self.round = 2
-                self.resetButton.setHidden(True)
-                self.resetButton1.setHidden(False)
+                else:
+                    self.positiveSamples.setText('Indeterministic: \n Proceed to sub- \n directional testing')
+                    self.labelsCube = self.labelledCube()
+                    self.subTest()
+                    self.okButton.setHidden(True)
+                    if self.round == 1:
+                        self.round = 2
+                    else:
+                        self.round = 3
+                    self.resetButton.setHidden(True)
+                    self.resetButton1.setHidden(False)
+            except:
+                pass
 
-    def secondGrouping(self):
-        if self.poolSizeEdit.text() == "":
-            self.error_2.setText("Enter a number")
-        elif int(self.poolSizeEdit.text())<=3:
-            self.error_2.setText("Enter a valid number")
-        else:
-            self.error_2.setText("")
-            self.dimensionTabs.setCurrentIndex(0)
-            self.setNames = []
-            self.tabNames = {}
-            self.positiveSlicesList = []
-            self.positiveSets = []
-            self.resetTabs()
-            self.editablePoolSize = int(self.poolSizeEdit.text())
-            self.D = int(np.ceil(np.log(self.editablePoolSize) / np.log(self.slices)))
-            self.valueDimension.setText( str(self.D))
-            self.valueSlices.setText(str(self.D*3))
-            self.numMaxSlice.setText(str(3**(self.D-1)))
-            self.slicedCube = self.create_slices(dim = self.D)
-            self.createTabs(self.D, self.slicedCube)
-            self.initText = ', '.join(str(s) for s in self.tabContent["D1"]["yellow"] if s <= self.editablePoolSize)
-            self.sliceLength = len(self.tabContent["D1"]["yellow"])
-            self.sliceId.setText("Direction "+"1, "+"Yellow Slice with "+str(self.sliceLength)+" Samples.")
-            self.sliceShow.setText(self.initText)
- 
-    def subTest(self, comboText = None):
-        self.myDict = defaultdict(lambda: defaultdict(lambda:'Error'))
-        sub_dim = self.D - 1
-        for i in list(self.results.keys()):
-            for j in self.results[i]:
-                slices = self.SLICES[i][j]
-                self.myDict[i][j] = self.create_slices(dim = sub_dim, sample = slices)
+    def currentSlice(self, i):
+        self.sliceSelect.clear()
+        try:
+            currentComboText = list(self.res2)[i]
+            self.sliceSelect.addItems(self.res2)
+        except:
+            currentComboText = list(self.res)[i]
+            self.sliceSelect.addItems(self.res)
         self.secondInputTitle.setText("Subtests")
         self.resetButton_3.setHidden(True)
         self.calcSecondButton.setHidden(True)
@@ -979,27 +1121,22 @@ class Ui_PoolTestingCalculator(object):
         self.inPoolSize.setHidden(True)
         self.sliceSelect.setHidden(False)
         self.sliceTitle.setHidden(False)
-        self.sliceSelect.addItems(self.res)
         self.setNames = []
         self.tabNames = {}
         self.positiveSlicesList = []
         self.positiveSets = []
         self.resetTabs()
-        if comboText == None:
+        self.text["subTest"] = self.myDict
+        if currentComboText == []:
             x, z, y = list(self.res)[0].partition('-')
         else:
-            x, z, y = list(comboText.partition('-'))
+            x, z, y = list(currentComboText.partition('-'))
         self.partRes = self.myDict[x][y]
         self.numTabs = len(self.partRes.keys())
         self.partRes = self.myDict[x][y]
         self.createTabs(self.numTabs, self.partRes)
         self.okButton1.setHidden(False)
 
-    def currentSlice(self, i):
-        currentComboText = list(self.res)[i]
-        self.subTest(comboText = currentComboText)
-        
-   
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
