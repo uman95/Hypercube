@@ -21,5 +21,8 @@ Again after testing positive slices are entered in the software to find out whic
 
 NB: For now only one subtest is assumed.
     
-The sofware can save and open .hcb files (hypercube files). It has a slight bug on the finding positives in sub-test, being fixed ASAP.
+The sofware can save and open .hcb files (hypercube files). 
+
+The compiled executable doesn't save and open, problem being fixed ASAP.
+
 
