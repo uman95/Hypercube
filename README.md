@@ -1,3 +1,6 @@
+
+This is a software implementation of the algorithmic concept in the paper [A strategy for finding people infected with SARS-CoV-2: optimizing pooled testing at low prevalence] (https://arxiv.org/abs/2004.14934)
+
 If you are on linux you can run the executable
 Otherwise install pyqt5 and run the python file
 
